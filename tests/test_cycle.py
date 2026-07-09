@@ -379,6 +379,51 @@ def main():
     check("habitat still cycles after nuke", habitat.cycle["scout"] == 1)
 
     server.shutdown()
+
+    # --- MCP bridge server -------------------------------------------------
+    import subprocess
+    ok, rid = habitat.bridge.submit(
+        "scout",
+        "Add a way for agents to see the total number of files in shared",
+        "Extend fs_list so that when called with path '.' it also returns a count "
+        "of shared files, giving agents a cheap sense of communal activity.",
+    )
+    check("bridge accepts the MCP test request", ok, rid)
+    # run the MCP server pointed at the TEST habitat root, not the repo:
+    env_script = (
+        "import sys, json; sys.path.insert(0, '.'); "
+        "import mcp_bridge; from pathlib import Path; "
+        f"mcp_bridge.ROOT = Path({str(root)!r}); "
+        "mcp_bridge.main()"
+    )
+    mcp = subprocess.Popen(
+        [sys.executable, "-c", env_script],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+        cwd=Path(__file__).resolve().parent.parent,
+    )
+    def rpc(id_, method, params=None):
+        mcp.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method,
+                                    "params": params or {}}) + "\n")
+        mcp.stdin.flush()
+        return json.loads(mcp.stdout.readline())
+    init = rpc(1, "initialize")
+    check("MCP initialize handshake", init["result"]["serverInfo"]["name"] == "hollow-bridge")
+    tools = {t["name"] for t in rpc(2, "tools/list")["result"]["tools"]}
+    check("MCP exposes the bridge tools",
+          {"list_pending_requests", "respond_to_request", "habitat_state"} <= tools)
+    listed = rpc(3, "tools/call", {"name": "list_pending_requests"})
+    listed_body = json.loads(listed["result"]["content"][0]["text"])
+    check("MCP lists the pending request",
+          any(r["request_id"] == rid for r in listed_body["pending"]), str(listed_body)[:200])
+    rpc(4, "tools/call", {"name": "respond_to_request", "arguments": {
+        "request_id": rid, "status": "rejected",
+        "response": "test verdict: rejected via the MCP bridge"}})
+    responses = [json.loads(l) for l in open(habitat.memory.dir / "claude_responses.jsonl")]
+    check("MCP verdict lands in claude_responses.jsonl",
+          any(r["request_id"] == rid and r["status"] == "rejected" for r in responses))
+    mcp.stdin.close()
+    mcp.wait(timeout=5)
+
     stub.shutdown()
     print(f"\nALL {PASS} CHECKS PASSED  (state under {root})")
 
