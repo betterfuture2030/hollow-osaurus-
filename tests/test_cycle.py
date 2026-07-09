@@ -271,6 +271,13 @@ def main():
     check("validation failure reason is shown in the goal block",
           "why_validation_last_failed" in vprompt and "artifact too thin" in vprompt)
 
+    # --- long artifacts get a labeled evidence cut, not a silent one ------
+    from substrate.validation import build_evidence, EVIDENCE_CHARS_PER_ARTIFACT
+    long_ev = build_evidence([("a.md", "x" * (EVIDENCE_CHARS_PER_ARTIFACT + 500))])
+    short_ev = build_evidence([("b.md", "short and complete")])
+    check("evidence truncation is labeled for the semantic judge",
+          "NOTE TO VALIDATOR" in long_ev and "NOTE TO VALIDATOR" not in short_ev)
+
     # --- operator API ----------------------------------------------------
     server = start_server(habitat, 0)
     api = f"http://127.0.0.1:{server.server_address[1]}"

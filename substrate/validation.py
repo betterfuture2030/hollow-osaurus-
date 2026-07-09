@@ -16,6 +16,28 @@ PLACEHOLDER_PATTERNS = ("todo", "tbd", "lorem ipsum", "placeholder", "<insert", 
 # for banning them (observed live: it cost an agent its best artifact).
 NEGATION_MARKERS = ("no ", "not ", "never", "avoid", "without", "forbid", "reject")
 MIN_ARTIFACT_CHARS = 120
+# The semantic judge reads at most this much of each artifact. When a
+# document exceeds it, the cut MUST be labeled: an unlabeled slice reads as
+# an author error, and the judge rejects intact documents as "truncated,
+# cutting off mid-sentence" (observed live — it cost a goal all 5 attempts).
+EVIDENCE_CHARS_PER_ARTIFACT = 4000
+EVIDENCE_TOTAL_CHARS = 12000
+TRUNCATION_NOTE = (
+    "\n[NOTE TO VALIDATOR: evidence display truncated here for review; "
+    "the artifact on disk continues past this point. Do not treat this "
+    "cutoff as incompleteness.]"
+)
+
+
+def build_evidence(texts) -> str:
+    """Assemble the semantic layer's evidence block from (rel, text) pairs."""
+    parts = []
+    for rel, text in texts:
+        body = text[:EVIDENCE_CHARS_PER_ARTIFACT]
+        if len(text) > EVIDENCE_CHARS_PER_ARTIFACT:
+            body += TRUNCATION_NOTE
+        parts.append(f"--- {rel} ---\n{body}")
+    return "\n\n".join(parts)[:EVIDENCE_TOTAL_CHARS]
 
 
 def find_placeholder(text: str):
@@ -76,13 +98,13 @@ def validate_goal(goal: dict, workspace_root, llm, memory) -> tuple:
 
     # Layer 4: semantic comparison (skipped with a warning if the model
     # gives no parseable verdict — mechanical layers still hold the line)
-    evidence = "\n\n".join(f"--- {rel} ---\n{text[:1500]}" for rel, text in texts)
+    evidence = build_evidence(texts)
     if not evidence:
         evidence = "(no file artifacts; output went to memory/proposals)"
     verdict = llm.json_chat(
         SEMANTIC_SYSTEM,
         f"GOAL: {goal['title']}\n{goal['description']}\n"
-        f"SUCCESS CRITERIA: {goal['success_criteria']}\n\nEVIDENCE:\n{evidence[:6000]}",
+        f"SUCCESS CRITERIA: {goal['success_criteria']}\n\nEVIDENCE:\n{evidence}",
     )
     if verdict is None:
         memory.event(goal["agent"], "validation", "layer4: no parseable verdict, warn-pass")
