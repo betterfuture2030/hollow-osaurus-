@@ -137,6 +137,6 @@ coaching attempts — with reasons, since agents learn from them.
 plans, so the whole habitat can run in CI or on any machine:
 
 ```bash
-python3 tests/test_cycle.py     # 67 end-to-end checks
+python3 tests/test_cycle.py     # 71 end-to-end checks
 python3 tests/stub_osaurus.py --port 1337   # or run the habitat against the stub manually
 ```

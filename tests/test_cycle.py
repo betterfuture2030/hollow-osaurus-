@@ -273,6 +273,42 @@ def main():
     check("panel carries per-agent color variables",
           all(f"--c-{a}" in panel_html for a in AGENT_NAMES))
 
+    # --- step results carry forward into the next prompt --------------------
+    (habitat.memory.workspace / "builder" / "carry.md").write_text(
+        "the secret ingredient is patience " * 10)
+    habitat.llm.json_chat = lambda *a, **k: {
+        "thought": "reading to synthesize later", "action": "continue",
+        "steps": [{"capability": "fs_read", "args": {"path": "carry.md"}}]}
+    habitat.run_cycle("builder")
+    habitat.llm.json_chat = real_json_chat
+    check("successful step results are carried to the next cycle",
+          any("secret ingredient" in r for r in habitat.last_step_results["builder"]),
+          str(habitat.last_step_results["builder"])[:150])
+    _, carry_prompt = goal_selection_prompt("builder", {
+        **ctx, "last_step_results": habitat.last_step_results["builder"]})
+    check("prompt renders last step results",
+          "RESULTS OF YOUR LAST CYCLE'S STEPS" in carry_prompt
+          and "secret ingredient" in carry_prompt)
+
+    # --- fs_write append mode ----------------------------------------------
+    habitat.caps.dispatch("builder", "fs_write", {"path": "log.md", "content": "first line"})
+    habitat.caps.dispatch("builder", "fs_write",
+                          {"path": "log.md", "content": "second line", "append": True})
+    logged = (habitat.memory.workspace / "builder" / "log.md").read_text()
+    check("fs_write append adds without clobbering",
+          "first line" in logged and "second line" in logged
+          and logged.index("first") < logged.index("second"), logged)
+
+    # --- repeating completed work costs futility ----------------------------
+    done_goal = habitat.goals["builder"].create("Catalog the ancient stones", "d" * 40, "c" * 30)
+    habitat.goals["builder"].complete(done_goal)
+    habitat.suffering["builder"].resolve("futility")
+    habitat._futility_check("builder", "Catalog the ancient stones again")
+    check("repeating a completed goal raises futility",
+          "futility" in habitat.suffering["builder"].stressors,
+          str(habitat.suffering["builder"].stressors))
+    habitat.suffering["builder"].resolve("futility")
+
     # --- timestamps carry the machine's local offset -----------------------
     from datetime import datetime as _dt
     from substrate.memory import now_iso

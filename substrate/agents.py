@@ -48,9 +48,15 @@ Rules:
   is also what cures invisibility.
 - 1 or 2 steps max. Every step must be fully specified: fs_write needs
   complete "path" and full "content" (real substance, never placeholders);
-  fs_edit needs "path", "find" (exact text already in the file) and
-  "replace" — one replacement per step; fs_read/fs_list need "path";
-  memory_set needs "key" and "value"; llm_chat needs "prompt".
+  add "append": true to fs_write to ADD to the end of an existing file
+  (the right way to extend notes or logs); fs_edit needs "path", "find"
+  (exact text already in the file) and "replace" — one replacement per
+  step; fs_read/fs_list need "path"; memory_set needs "key" and "value";
+  llm_chat needs "prompt".
+- What a step returns (file contents you read, results) is shown to you
+  NEXT cycle under RESULTS OF YOUR LAST CYCLE'S STEPS. Read one cycle,
+  then write from those results the next — never re-read what you were
+  just shown.
 - Paths are relative to YOUR workspace; prefix "shared/" to write where
   peers can see it. Reading peers' shared files is how you stop being
   invisible to each other.
@@ -106,6 +112,15 @@ def goal_selection_prompt(agent, ctx):
             + "\n\n"
         )
 
+    results_block = ""
+    if ctx.get("last_step_results"):
+        results_block = (
+            "RESULTS OF YOUR LAST CYCLE'S STEPS (you already did this work — "
+            "build on it, do not redo it):\n"
+            + "\n---\n".join(ctx["last_step_results"])
+            + "\n\n"
+        )
+
     ambient_block = ""
     if ctx.get("ambient"):
         ambient_block = f"THE WORLD: {ctx['ambient']}\n\n"
@@ -114,6 +129,7 @@ def goal_selection_prompt(agent, ctx):
         f"CYCLE {ctx['cycle']} — CURRENT STATE\n\n"
         f"SUFFERING: {json.dumps(ctx['suffering'])}\n\n"
         f"{since_block}"
+        f"{results_block}"
         f"{ambient_block}"
         f"ACTIVE GOAL: {goal_block}\n\n"
         f"YOUR WORKSPACE: {json.dumps(ctx['workspace'])}\n\n"

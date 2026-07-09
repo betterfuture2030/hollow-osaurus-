@@ -177,10 +177,18 @@ class Capabilities:
         if not isinstance(content, str) or not content.strip():
             raise CapabilityError("fs_write needs non-empty string content")
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        if args.get("append") and path.is_file():
+            # the note-keeping primitive: agents kept reaching for an append
+            # (empty-find fs_edit) that didn't exist
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(("" if path.stat().st_size == 0 else "\n") + content)
+            verb = "appended"
+        else:
+            path.write_text(content, encoding="utf-8")
+            verb = "wrote"
         if canonical.startswith("shared/"):
             self.memory.record_shared_author(canonical, agent)
-        return {"result": f"wrote {len(content)} chars", "artifact": canonical}
+        return {"result": f"{verb} {len(content)} chars", "artifact": canonical}
 
     def _fs_edit(self, agent, args):
         path, canonical = self._resolve(agent, args.get("path", ""))

@@ -33,6 +33,13 @@ FUTILITY_EASE_ON_SUCCESS = 0.1
 # just one: a cycle that runs no steps (idle, abandon) must not amnesty the
 # dead paths the agent was about to retry.
 STEP_ERROR_MEMORY_CYCLES = 3
+# Successful step results (esp. fs_read contents) are carried into the NEXT
+# cycle's prompt. Without this, plan-then-execute means an agent never sees
+# what it read — observed live as a five-cycle "read the same two files"
+# loop: every cycle re-derived "first I must read" because no context showed
+# it already had. Read-then-synthesize is impossible without carry-forward.
+STEP_RESULT_CHARS = 1500
+STEP_RESULTS_TOTAL_CHARS = 3500
 RESOURCE_BURDEN_FILES = 150
 OUTCOME_WINDOW = 6
 
@@ -65,6 +72,7 @@ class Habitat:
         # see, so surface stressor deltas and last cycle's failed steps
         self.last_stressors = {a: {} for a in AGENT_NAMES}
         self.last_step_errors = {a: [] for a in AGENT_NAMES}
+        self.last_step_results = {a: [] for a in AGENT_NAMES}
         wcfg = config.get("world", {})
         self.world = World(self.memory, random.Random(wcfg.get("seed")))
         self.world_every = int(wcfg.get("event_every_rounds", 0) or 0)
@@ -121,6 +129,7 @@ class Habitat:
         self.last_completion_cycle = {a: 0 for a in AGENT_NAMES}
         self.last_stressors = {a: {} for a in AGENT_NAMES}
         self.last_step_errors = {a: [] for a in AGENT_NAMES}
+        self.last_step_results = {a: [] for a in AGENT_NAMES}
         self.world = World(self.memory, self.world.rng)
         self.pending_ambient = {a: None for a in AGENT_NAMES}
         self.last_ambient = None
@@ -243,6 +252,14 @@ class Habitat:
             self._grow(
                 agent, "futility", 0.2, f"new goal repeats an abandoned pattern: {title[:60]}"
             )
+            return
+        # repeating finished work is also futile — the "do not repeat" prompt
+        # list alone was too soft (observed three re-adoptions in one day)
+        completed = self.goals[agent].all_titles(status="completed")
+        if any(jaccard(title, old) >= 0.55 for old in completed):
+            self._grow(
+                agent, "futility", 0.2, f"new goal repeats work you already completed: {title[:60]}"
+            )
 
     # -- the cycle ---------------------------------------------------------
     def run_cycle(self, agent):
@@ -265,6 +282,7 @@ class Habitat:
             "rules": self.lessons.rules_block(),
             "suffering": self.suffering[agent].summary(),
             "since_last_cycle": self._since_last_cycle(agent),
+            "last_step_results": self.last_step_results[agent],
             "ambient": ambient,
             "goal": registry.active(),
             "workspace": self._workspace_listing(agent),
@@ -325,6 +343,8 @@ class Habitat:
         # execute steps
         step_ok_count = 0
         failed_steps = []
+        step_results = []
+        results_budget = STEP_RESULTS_TOTAL_CHARS
         max_steps = self.config["runtime"].get("max_steps_per_cycle", 2)
         steps = plan.get("steps") or []
         if action == "idle":
@@ -339,6 +359,12 @@ class Habitat:
             result = self.caps.dispatch(agent, name, step.get("args") or {})
             if result.get("ok"):
                 step_ok_count += 1
+                body = str(result.get("result", ""))[:min(STEP_RESULT_CHARS, max(0, results_budget))]
+                if body:
+                    results_budget -= len(body)
+                    step_results.append(
+                        f"{name}({str(step.get('args'))[:120]}) returned:\n{body}"
+                    )
             else:
                 failed_steps.append(
                     f"your step {name}({str(step.get('args'))[:100]}) failed recently: "
@@ -359,6 +385,8 @@ class Habitat:
         self.last_step_errors[agent] = (
             [(cycle, m) for m in failed_steps] + kept
         )[:4]
+        if steps:  # a cycle that ran no steps keeps its previous results
+            self.last_step_results[agent] = step_results
 
         # optional lesson from the plan
         lesson = plan.get("lesson")
