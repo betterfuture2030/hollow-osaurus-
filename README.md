@@ -1,9 +1,20 @@
 # Hollow on Osaurus
 
 A Mac-native rebuild of [Hollow AgentOS](https://ninjahawk.github.io/hollow-wiki/)
-that runs its model inference through **[Osaurus](https://github.com/dinoki-ai/osaurus)**
+that runs its model inference through **[Osaurus](https://github.com/osaurus-ai/osaurus)**
 (Apple-Silicon MLX server) instead of Ollama. No Docker, no cloud calls —
 three local agents living in a substrate on your MacBook.
+
+## Provenance & license
+
+This is a **clean-room reimplementation** of
+[Hollow AgentOS](https://github.com/ninjahawk/hollow-agentOS) by
+[ninjahawk](https://github.com/ninjahawk), built from the project's public
+wiki documentation only — no upstream source code or documentation text was
+copied. The concepts and mechanics are the original author's; the
+implementation here is original. Full provenance and third-party credits are
+in [NOTICE.md](NOTICE.md). This repository is licensed under the
+[MIT License](LICENSE).
 
 Three agents — **scout**, **analyst**, **builder** — share a workspace, pick
 their own goals, and develop over time. The substrate doesn't tell them what
@@ -36,7 +47,6 @@ to do; it makes consequences mechanical:
 3. **Install and run Hollow:**
 
    ```bash
-   cd hollow
    pip3 install -r requirements.txt
    python3 hollow.py          # first run: wizard detects Osaurus + models
    ```
