@@ -161,6 +161,20 @@ def main():
           str(s2.stressors.get("stagnation")))
     s2.resolve("stagnation")
 
+    # --- futility eases on real action too (the abandon-treadmill fix) ---
+    s2.raise_stressor("futility", 1.0, "test wedge")
+    habitat.llm.json_chat = lambda *a, **k: {
+        "thought": "acting through path-out capabilities",
+        "action": "continue",
+        "steps": [{"capability": "fs_list", "args": {"path": "."}}],
+    }
+    habitat.run_cycle("analyst")
+    habitat.llm.json_chat = real_json_chat
+    check("productive cycle eases futility",
+          s2.stressors.get("futility", {}).get("severity", 1.0) < 1.0,
+          str(s2.stressors.get("futility")))
+    s2.resolve("futility")
+
     # --- voluntary abandonment + shared/ artifacts survive cleanup -------
     habitat.llm.json_chat = lambda *a, **k: {
         "thought": "make a shared and a private artifact",

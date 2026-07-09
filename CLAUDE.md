@@ -62,7 +62,7 @@ promote `hollow/` to the repo root.**
     tests/
       stub_osaurus.py         fake /v1/models + /v1/chat/completions with scripted
                               plans — lets the whole habitat run with no model
-      test_cycle.py           37-check end-to-end test (run: python3 tests/test_cycle.py)
+      test_cycle.py           38-check end-to-end test (run: python3 tests/test_cycle.py)
 ```
 
 ## Tech stack and conventions

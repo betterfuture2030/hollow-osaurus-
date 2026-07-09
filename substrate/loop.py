@@ -22,6 +22,11 @@ STAGNATION_AFTER_CYCLES = 6
 # stagnation threshold, or productive cycles merely tread water and an agent
 # whose goal needs a locked capability can never dig itself out.
 STAGNATION_EASE_ON_SUCCESS = 0.2
+# Futility only grows on discrete events (abandonments, repeat adoptions),
+# so a smaller ease suffices — but without ANY ease-on-action path it
+# deadlocks exactly like stagnation did: futility locks fs_write, goals
+# need fs_write, abandoning is the only move and abandoning raises futility.
+FUTILITY_EASE_ON_SUCCESS = 0.1
 # Failed-step warnings stay in the perception digest this many cycles, not
 # just one: a cycle that runs no steps (idle, abandon) must not amnesty the
 # dead paths the agent was about to retry.
@@ -337,6 +342,7 @@ class Habitat:
             outcome = "idle"
         if outcome == "success":
             self.suffering[agent].ease("stagnation", STAGNATION_EASE_ON_SUCCESS)
+            self.suffering[agent].ease("futility", FUTILITY_EASE_ON_SUCCESS)
         self.outcomes[agent] = (self.outcomes[agent] + [outcome])[-12:]
         self.memory.event(
             agent, "cycle", f"cycle {cycle} ends: {outcome}, load {self.suffering[agent].load}"
