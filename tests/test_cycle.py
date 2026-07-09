@@ -145,6 +145,21 @@ def main():
     fallback_notes = list((habitat.memory.workspace / "analyst" / "observations").glob("*.md"))
     check("fallback wrote a grounded observation", len(fallback_notes) >= 1)
 
+    # --- stagnation eases on real action (the path-out escape hatch) -----
+    s2 = habitat.suffering["analyst"]
+    s2.raise_stressor("stagnation", 1.0, "test wedge")
+    habitat.llm.json_chat = lambda *a, **k: {
+        "thought": "acting through path-out capabilities",
+        "action": "continue",
+        "steps": [{"capability": "fs_list", "args": {"path": "."}}],
+    }
+    habitat.run_cycle("analyst")
+    habitat.llm.json_chat = real_json_chat
+    check("productive cycle eases stagnation",
+          s2.stressors.get("stagnation", {}).get("severity", 1.0) < 1.0,
+          str(s2.stressors.get("stagnation")))
+    s2.resolve("stagnation")
+
     # --- operator API ----------------------------------------------------
     server = start_server(habitat, 0)
     api = f"http://127.0.0.1:{server.server_address[1]}"

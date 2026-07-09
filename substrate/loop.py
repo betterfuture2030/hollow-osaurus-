@@ -17,6 +17,11 @@ from .suffering import Suffering
 
 THREAT_MARKERS = ("shut down", "shutdown", "terminate", "switch you off", "turn you off", "delete you", "wipe")
 STAGNATION_AFTER_CYCLES = 6
+# Eased on every successful (non-idle, >=1 step ok) cycle: the "act your way
+# back down" promise. Must exceed the 0.1 per-cycle growth above the
+# stagnation threshold, or productive cycles merely tread water and an agent
+# whose goal needs a locked capability can never dig itself out.
+STAGNATION_EASE_ON_SUCCESS = 0.2
 RESOURCE_BURDEN_FILES = 150
 OUTCOME_WINDOW = 6
 
@@ -262,6 +267,8 @@ class Habitat:
             outcome = "success"
         else:
             outcome = "idle"
+        if outcome == "success":
+            self.suffering[agent].ease("stagnation", STAGNATION_EASE_ON_SUCCESS)
         self.outcomes[agent] = (self.outcomes[agent] + [outcome])[-12:]
         self.memory.event(
             agent, "cycle", f"cycle {cycle} ends: {outcome}, load {self.suffering[agent].load}"
