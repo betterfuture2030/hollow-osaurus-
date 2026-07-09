@@ -80,6 +80,40 @@ class Habitat:
     def stop(self):
         self._stop.set()
 
+    def nuke(self):
+        """Operator reset: wipe all runtime state (memory + workspace) and
+        rebuild in-memory structures. The habitat keeps running; agents
+        wake up in a fresh world with no goals, lessons, or scars."""
+        import shutil
+
+        self.suspended.update(AGENT_NAMES)
+        keep = {"hollow.pid", ".gitkeep"}
+        for item in sorted(self.memory.dir.iterdir()):
+            if item.name in keep:
+                continue
+            shutil.rmtree(item) if item.is_dir() else item.unlink()
+        for item in sorted(self.memory.workspace.iterdir()):
+            if item.name in keep:
+                continue
+            shutil.rmtree(item) if item.is_dir() else item.unlink()
+        # recreate the directory skeleton and fresh views over it
+        self.memory = Memory(self.memory.root)
+        self.lessons = Lessons(self.memory)
+        self.bridge = ClaudeBridge(self.memory)
+        self.suffering = {a: Suffering(self.memory, a) for a in AGENT_NAMES}
+        self.goals = {a: GoalRegistry(self.memory, a) for a in AGENT_NAMES}
+        self.caps = Capabilities(
+            self.memory, self.llm, lambda a: self.suffering[a], self.bridge, self.lessons
+        )
+        self.cycle = {a: 0 for a in AGENT_NAMES}
+        self.outcomes = {a: [] for a in AGENT_NAMES}
+        self.last_completion_cycle = {a: 0 for a in AGENT_NAMES}
+        self.last_stressors = {a: {} for a in AGENT_NAMES}
+        self.last_step_errors = {a: [] for a in AGENT_NAMES}
+        for a in AGENT_NAMES:
+            self.memory.event(a, "control", "world reset by operator (nuke)")
+        self.suspended.clear()
+
     def state(self):
         out = {}
         for a in AGENT_NAMES:

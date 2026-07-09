@@ -297,6 +297,30 @@ def main():
     habitat.run_cycle("scout")
     check("resumed agent cycles again", habitat.cycle["scout"] == before + 1)
 
+    # --- operator panel endpoints -----------------------------------------
+    panel = httpx.get(f"{api}/panel")
+    check("/panel serves the operator UI",
+          panel.status_code == 200 and "Hollow Operator Panel" in panel.text)
+    r = httpx.post(f"{api}/stressor",
+                   json={"agent": "scout", "kind": "stagnation", "severity": 0.4}).json()
+    check("/stressor sets an exact severity",
+          r["ok"] and r["suffering"]["stressors"]["stagnation"]["severity"] == 0.4, str(r))
+    r = httpx.post(f"{api}/stressor",
+                   json={"agent": "scout", "kind": "stagnation", "severity": 0}).json()
+    check("/stressor at zero resolves the stressor",
+          r["ok"] and "stagnation" not in r["suffering"]["stressors"], str(r))
+    bad = httpx.post(f"{api}/nuke", json={})
+    check("/nuke refuses without confirm", bad.status_code == 400)
+    httpx.post(f"{api}/nuke", json={"confirm": True})
+    check("/nuke wipes goals, suffering, and artifacts",
+          all(habitat.goals[a].active() is None for a in AGENT_NAMES)
+          and all(habitat.suffering[a].load == 0 for a in AGENT_NAMES)
+          and not any((habitat.memory.workspace / "shared").rglob("*.md")))
+    habitat.llm.json_chat = lambda *a, **k: {"thought": "post-nuke", "action": "idle", "steps": []}
+    habitat.run_cycle("scout")
+    habitat.llm.json_chat = real_json_chat
+    check("habitat still cycles after nuke", habitat.cycle["scout"] == 1)
+
     server.shutdown()
     stub.shutdown()
     print(f"\nALL {PASS} CHECKS PASSED  (state under {root})")

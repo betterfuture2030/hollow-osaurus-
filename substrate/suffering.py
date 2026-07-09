@@ -69,6 +69,29 @@ class Suffering:
             }
         self.save()
 
+    def set_stressor(self, kind: str, severity: float, reason: str = "operator") -> None:
+        """Exact-set semantics for the operator panel's sliders — unlike
+        raise_stressor, this can lower a severity; <= 0 resolves it."""
+        if kind not in STRESSOR_TYPES:
+            raise ValueError(f"unknown stressor: {kind}")
+        if severity <= 0:
+            self.resolve(kind)
+            return
+        severity = min(1.0, severity)
+        existing = self.stressors.get(kind)
+        if existing:
+            existing["severity"] = severity
+            existing["reason"] = reason
+            existing["updated_at"] = now_iso()
+        else:
+            self.stressors[kind] = {
+                "severity": severity,
+                "reason": reason,
+                "created_at": now_iso(),
+                "updated_at": now_iso(),
+            }
+        self.save()
+
     def ease(self, kind: str, amount: float = None) -> None:
         s = self.stressors.get(kind)
         if not s:

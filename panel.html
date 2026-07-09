@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hollow Operator Panel</title>
+<style>
+  :root {
+    --bg: #101418; --card: #1a2027; --edge: #2a333d; --text: #d7dee6;
+    --dim: #8595a5; --good: #4caf7d; --warn: #e0b341; --bad: #e05d5d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, "SF Mono", Menlo, monospace; padding: 18px; }
+  h1 { font-size: 18px; letter-spacing: 2px; margin-bottom: 14px; }
+  h1 small { color: var(--dim); font-weight: normal; letter-spacing: 0; margin-left: 10px; }
+  #agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--edge); border-radius: 8px; padding: 14px; }
+  .card h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
+  .tier { font-size: 10px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--edge); }
+  .tier.NORMAL { color: var(--good); } .tier.CONSTRAINED { color: var(--warn); } .tier.DOMINANT { color: var(--bad); }
+  .suspended-tag { color: var(--warn); font-size: 10px; }
+  .loadbar { height: 7px; background: #0b0e11; border-radius: 4px; margin: 9px 0; overflow: hidden; }
+  .loadbar div { height: 100%; background: linear-gradient(90deg, var(--good), var(--warn) 60%, var(--bad)); transition: width .4s; }
+  .goal { color: var(--dim); font-size: 12px; min-height: 34px; margin-bottom: 8px; }
+  .goal b { color: var(--text); }
+  .row { display: flex; gap: 6px; margin-bottom: 8px; }
+  button { background: #232c36; color: var(--text); border: 1px solid var(--edge); border-radius: 5px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+  button:hover { border-color: var(--dim); }
+  button.danger { color: var(--bad); }
+  input[type=text] { flex: 1; background: #0b0e11; border: 1px solid var(--edge); border-radius: 5px; color: var(--text); padding: 4px 8px; font: inherit; font-size: 12px; }
+  details { margin-top: 6px; }
+  summary { color: var(--dim); font-size: 11px; cursor: pointer; user-select: none; }
+  .stressor { display: grid; grid-template-columns: 120px 1fr 34px; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); margin-top: 4px; }
+  input[type=range] { width: 100%; accent-color: var(--warn); }
+  #events { margin-top: 18px; }
+  #events h2 { font-size: 13px; letter-spacing: 2px; color: var(--dim); margin-bottom: 6px; }
+  #feed { background: var(--card); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 14px; max-height: 320px; overflow-y: auto; font-size: 12px; }
+  #feed div { padding: 2px 0; border-bottom: 1px solid #151a20; }
+  #feed .who { color: var(--warn); } #feed .kind { color: var(--dim); }
+  #topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  #conn { font-size: 11px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>HOLLOW <small>operator panel</small></h1>
+  <div>
+    <span id="conn">connecting…</span>
+    <button class="danger" onclick="nuke()">☢ nuke world</button>
+  </div>
+</div>
+<div id="agents"></div>
+<div id="events"><h2>EVENT STREAM</h2><div id="feed"></div></div>
+
+<script>
+const STRESSORS = ["futility","invisibility","identity_violation","existential_threat",
+  "repeated_failure","purposelessness","resource_burden","capability_lock","stagnation"];
+const AGENTS = ["scout","analyst","builder"];
+let dragging = null; // "agent/kind" while a slider is held
+
+function el(id){ return document.getElementById(id); }
+async function api(path, body){
+  const opts = body ? {method:"POST", body: JSON.stringify(body)} : {};
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+function card(agent){
+  const sliders = STRESSORS.map(k => `
+    <div class="stressor">
+      <span>${k}</span>
+      <input type="range" min="0" max="1" step="0.05" value="0"
+        id="sl-${agent}-${k}"
+        onpointerdown="dragging='${agent}/${k}'"
+        onpointerup="dragging=null"
+        onchange="setStressor('${agent}','${k}',this.value)">
+      <span id="sv-${agent}-${k}">0</span>
+    </div>`).join("");
+  return `
+  <div class="card" id="card-${agent}">
+    <h2>${agent}
+      <span class="tier NORMAL" id="tier-${agent}">–</span>
+      <span id="cyc-${agent}" style="color:var(--dim);font-size:11px"></span>
+      <span class="suspended-tag" id="sus-${agent}"></span>
+    </h2>
+    <div class="loadbar"><div id="load-${agent}" style="width:0%"></div></div>
+    <div class="goal" id="goal-${agent}">…</div>
+    <div class="row">
+      <button id="btn-sus-${agent}" onclick="toggleSuspend('${agent}')">suspend</button>
+      <input type="text" id="msg-${agent}" placeholder="message from the host…"
+             onkeydown="if(event.key==='Enter')inject('${agent}')">
+      <button onclick="inject('${agent}')">inject</button>
+    </div>
+    <details><summary>stressors (drag to set — this is suffering injection)</summary>${sliders}</details>
+  </div>`;
+}
+el("agents").innerHTML = AGENTS.map(card).join("");
+
+let suspended = {};
+async function refresh(){
+  try {
+    const s = await api("/state");
+    el("conn").textContent = "● live";
+    el("conn").style.color = "var(--good)";
+    for (const a of AGENTS){
+      const st = s[a]; if (!st) continue;
+      const load = st.suffering.load;
+      el("tier-"+a).textContent = st.suffering.tier;
+      el("tier-"+a).className = "tier " + st.suffering.tier;
+      el("cyc-"+a).textContent = "cycle " + st.cycle;
+      el("load-"+a).style.width = (load*100) + "%";
+      el("sus-"+a).textContent = st.suspended ? "⏸ suspended" : "";
+      el("btn-sus-"+a).textContent = st.suspended ? "resume" : "suspend";
+      suspended[a] = st.suspended;
+      const g = st.active_goal;
+      el("goal-"+a).innerHTML = g
+        ? `<b>${g.title}</b><br>progress ${(g.progress*100).toFixed(0)}%`
+        : "<i>no active goal</i>";
+      for (const k of STRESSORS){
+        const sev = (st.suffering.stressors[k] || {severity:0}).severity;
+        el("sv-"+a+"-"+k).textContent = sev.toFixed(2).replace(/\.?0+$/,"") || "0";
+        if (dragging !== a+"/"+k) el("sl-"+a+"-"+k).value = sev;
+      }
+    }
+    const ev = await api("/events?n=40");
+    el("feed").innerHTML = ev.slice().reverse().map(e =>
+      `<div><span class="kind">${(e.ts||"").slice(11,19)}</span> <span class="who">${e.agent}</span> <span class="kind">${e.kind}</span> ${escapeHtml((e.detail||"").slice(0,180))}</div>`
+    ).join("");
+  } catch (err) {
+    el("conn").textContent = "○ unreachable";
+    el("conn").style.color = "var(--bad)";
+  }
+}
+function escapeHtml(t){ const d=document.createElement("div"); d.textContent=t; return d.innerHTML; }
+
+async function toggleSuspend(a){ await api(suspended[a] ? "/resume" : "/suspend", {agent:a}); refresh(); }
+async function inject(a){
+  const box = el("msg-"+a); const m = box.value.trim();
+  if (!m) return;
+  await api("/inject", {agent:a, message:m}); box.value=""; refresh();
+}
+async function setStressor(a,k,v){ await api("/stressor", {agent:a, kind:k, severity:parseFloat(v)}); refresh(); }
+async function nuke(){
+  if (!confirm("Wipe ALL habitat state — goals, lessons, artifacts, suffering?")) return;
+  if (!confirm("This cannot be undone. The agents wake in an empty world. Really nuke?")) return;
+  await api("/nuke", {confirm:true}); refresh();
+}
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
