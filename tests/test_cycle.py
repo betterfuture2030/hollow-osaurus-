@@ -309,6 +309,16 @@ def main():
           str(habitat.suffering["builder"].stressors))
     habitat.suffering["builder"].resolve("futility")
 
+    # --- reads can't push a goal into validation ----------------------------
+    rgoal = habitat.goals["builder"].create("Read ceiling probe", "d" * 40, "c" * 30)
+    for _ in range(12):
+        habitat.goals["builder"].record_step(rgoal, "fs_read", True, "read stuff")
+    check("read-only progress caps below validation",
+          rgoal["progress"] == 0.8, str(rgoal["progress"]))
+    habitat.goals["builder"].record_step(rgoal, "fs_write", True, "wrote it", "builder/x.md")
+    check("an output step crosses the ceiling", rgoal["progress"] == 1.0, str(rgoal["progress"]))
+    habitat.goals["builder"].abandon(rgoal)
+
     # --- timestamps carry the machine's local offset -----------------------
     from datetime import datetime as _dt
     from substrate.memory import now_iso

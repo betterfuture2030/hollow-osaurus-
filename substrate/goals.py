@@ -8,11 +8,17 @@ are capped at 0.20 for high-value capabilities and 0.10 otherwise.
 import uuid
 
 from .memory import Memory, append_jsonl, now_iso, read_jsonl
+from .validation import OUTPUT_CAPS
 
 HIGH_VALUE_CAPS = {"fs_write", "fs_edit", "propose_change", "invoke_claude"}
 HIGH_VALUE_DELTA = 0.20
 NORMAL_DELTA = 0.10
 MAX_VALIDATION_FAILURES = 5
+# Reading/preparation can only carry a goal this far; crossing into
+# validation (progress 1.0) requires an output step. Without this ceiling,
+# read-first plans hit 1.0 before their write cycle and burn validation
+# failures while legitimately still working (observed live, twice).
+READ_PROGRESS_CEILING = 0.8
 
 
 class GoalRegistry:
@@ -61,7 +67,10 @@ class GoalRegistry:
         )
         if ok:
             delta = HIGH_VALUE_DELTA if capability in HIGH_VALUE_CAPS else NORMAL_DELTA
-            goal["progress"] = round(min(1.0, goal["progress"] + delta), 4)
+            ceiling = 1.0 if capability in OUTPUT_CAPS else READ_PROGRESS_CEILING
+            goal["progress"] = round(
+                max(goal["progress"], min(ceiling, goal["progress"] + delta)), 4
+            )
         if artifact and artifact not in goal["artifacts"]:
             goal["artifacts"].append(artifact)
         self.save(goal)
