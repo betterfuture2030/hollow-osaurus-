@@ -103,9 +103,11 @@ full credit to ninjahawk).
 - **Suffering**: 9 stressors, load = min(1, sum). Load ≥ 0.55 locks
   `synthesize_capability`; ≥ 0.75 also locks `fs_write`/`fs_edit`. PATH_OUT
   (fs_read, fs_list, memory_set/get, llm_chat, invoke_claude, propose_change,
-  shell_exec, retire_capability) is never locked. **Ease-on-action**: a cycle
-  with ≥ 1 successful step eases stagnation 0.2 and futility 0.1 — every
-  accumulating stressor has an escape that doesn't require what it locks.
+  shell_exec, retire_capability) is never locked. **Ease-on-production**: a
+  cycle eases stagnation 0.2 / futility 0.1 only if it produced output (an
+  OUTPUT_CAPS step) — except while fs_write is locked, when any successful
+  step eases (the path-out escape hatch). Goals pinned at the 0.8 read
+  ceiling 3+ cycles get a "write now" digest nudge.
 - **Perception digest**: each prompt carries stressor deltas since last cycle,
   failed steps (3-cycle memory), truthful peer listings (ghost-filtered
   manifest), completed-goal titles, and the validator's last failure reason
