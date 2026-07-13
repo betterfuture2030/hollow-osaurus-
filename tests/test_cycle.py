@@ -543,8 +543,14 @@ def main():
           any(a["path"] == "shared/graph-probe.md" and a["author"] == "builder" for a in arts),
           str(arts)[:200])
     panel_v4 = (Path(__file__).resolve().parent.parent / "panel.html").read_text()
-    check("panel carries v4 surfaces (sky, ticker, dial, shelf)",
-          all(f'id="{i}"' in panel_v4 for i in ("sky", "ticker", "worlddial", "shelf", "rules")))
+    check("panel carries v4/v5 surfaces (sky, ticker, dial, shelf, vista)",
+          all(f'id="{i}"' in panel_v4 for i in
+              ("sky", "ticker", "worlddial", "shelf", "rules", "vista", "scenesvg", "peersvg")))
+    st_amb = httpx.get(f"{api}/state").json()["_world"]["last_ambient"]
+    h2 = Habitat(root, habitat.config, llm=habitat.llm)
+    check("last ambient event survives a habitat restart",
+          st_amb and h2.last_ambient and h2.last_ambient["text"] == st_amb["text"],
+          str(h2.last_ambient))
 
     bad = httpx.post(f"{api}/nuke", json={})
     check("/nuke refuses without confirm", bad.status_code == 400)

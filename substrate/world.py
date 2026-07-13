@@ -55,9 +55,11 @@ class World:
         return f"{ECHO_PREFIX}\"{fragment}\" ({e.get('agent', 'someone')}, long ago)"
 
     def draw(self):
-        """Draw one ambient event as (flavor, text). Echoes need history;
+        """Draw one ambient event as (flavor, text). Weather is weighted
+        highest — it drives the panel's visible atmosphere, and operators
+        provoke the world mostly to SEE something. Echoes need history;
         fall back to weather."""
-        kind = self.rng.choice(("weather", "echo", "object"))
+        kind = self.rng.choice(("weather", "weather", "weather", "echo", "object"))
         if kind == "echo":
             echo = self._echo()
             if echo:

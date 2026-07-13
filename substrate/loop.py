@@ -13,7 +13,7 @@ from .claude_bridge import ClaudeBridge
 from .goals import GoalRegistry, READ_PROGRESS_CEILING
 from .lessons import Lessons, jaccard
 from .llm import OsaurusClient
-from .memory import Memory
+from .memory import Memory, read_json, write_json
 from .suffering import Suffering
 from .validation import OUTPUT_CAPS
 from .world import World
@@ -81,7 +81,9 @@ class Habitat:
         self.world = World(self.memory, random.Random(wcfg.get("seed")))
         self.world_every = int(wcfg.get("event_every_rounds", 0) or 0)
         self.pending_ambient = {a: None for a in AGENT_NAMES}
-        self.last_ambient = None
+        # persisted: the panel's weather/scene must survive restarts, or the
+        # world appears mute after every bounce until the next event fires
+        self.last_ambient = read_json(self.memory.dir / "world_state.json", None)
         self.last_thought = {a: None for a in AGENT_NAMES}
         self.completions = {a: 0 for a in AGENT_NAMES}
         self.load_history = {a: [] for a in AGENT_NAMES}  # per-cycle load, panel sparkline
@@ -180,6 +182,7 @@ class Habitat:
         flavor, event = self.world.draw()
         self.pending_ambient = {a: event for a in AGENT_NAMES}
         self.last_ambient = {"text": event, "flavor": flavor, "t": time.time()}
+        write_json(self.memory.dir / "world_state.json", self.last_ambient)
         self.memory.event("world", "ambient", event)
         return event
 
@@ -491,6 +494,7 @@ class Habitat:
                 flavor, event = self.world.draw()
                 self.pending_ambient = {a: event for a in AGENT_NAMES}
                 self.last_ambient = {"text": event, "flavor": flavor, "t": time.time()}
+                write_json(self.memory.dir / "world_state.json", self.last_ambient)
                 self.memory.event("world", "ambient", event)
             for agent in AGENT_NAMES:
                 if self._stop.is_set():
