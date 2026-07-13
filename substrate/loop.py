@@ -320,6 +320,8 @@ class Habitat:
             "host_messages": host_messages,
             "claude_responses": claude_responses,
             "recent_outcomes": self.outcomes[agent][-OUTCOME_WINDOW:],
+            "just_completed": cycle - self.last_completion_cycle[agent] <= 1
+            and self.last_completion_cycle[agent] > 0,
         }
 
         system, user = goal_selection_prompt(agent, ctx)

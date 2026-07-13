@@ -54,7 +54,7 @@ full credit to ninjahawk).
                             real research_topic (DuckDuckGo, earned)
     validation.py           five-layer pipeline; negation-aware placeholder check;
                             labeled evidence truncation for the semantic judge
-    lessons.py              candidate→promoted lessons, Jaccard 0.55 dedupe,
+    lessons.py              candidate→promoted lessons, Jaccard 0.45 dedupe,
                             operator retraction blocklist (matches at 0.4)
     memory.py               kv store, audit log, event stream, host messages,
                             shared-file author manifest
@@ -66,7 +66,7 @@ full credit to ninjahawk).
   tests/
     stub_osaurus.py         fake /v1/models + /v1/chat/completions with scripted
                             plans — lets the whole habitat run with no model
-    test_cycle.py           88-check end-to-end test (run: python3 tests/test_cycle.py)
+    test_cycle.py           91-check end-to-end test (run: python3 tests/test_cycle.py)
 ```
 
 ## Tech stack and conventions
@@ -89,7 +89,7 @@ full credit to ninjahawk).
 - **State is jsonl/json under `memory/`**; goal registry lines are full
   snapshots — last line per id wins. **Runtime state is never committed.**
 - **Tunable constants sit at module tops** — change them there, not inline.
-- **Testing needs no model**: `.venv/bin/python tests/test_cycle.py` (88
+- **Testing needs no model**: `.venv/bin/python tests/test_cycle.py` (91
   plain-assert checks against the stub). Keep it green; extend the stub's
   scripted plans when adding mechanics.
 - **Every mechanic must be perceivable.** The hard-won rule of this project:
@@ -119,9 +119,10 @@ full credit to ninjahawk).
   negation-aware; semantic-judge evidence is 4000 chars/artifact with an
   explicit truncation label.
 - **Lessons**: promote after 2 observations (1 high-confidence for
-  environment/constraints); dedupe at Jaccard ≥ 0.55; operator
-  `Lessons.retract(text)` blocklists at ≥ 0.4 so vetoed beliefs can't
-  re-promote reworded.
+  environment/constraints); dedupe at Jaccard ≥ 0.45 (paraphrases slipped
+  0.55); operator `Lessons.retract(text)` blocklists at ≥ 0.4 so vetoed
+  beliefs can't re-promote reworded. Fallback rests (no filler goal) when
+  the model reply is unusable right after a completion.
 - **World**: ambient event every `world.event_every_rounds` rounds
   (weather / objects / echoes of past events), delivered as `THE WORLD:`.
 - **Synthesized tools**: `synthesize_capability(name, description, code)`,

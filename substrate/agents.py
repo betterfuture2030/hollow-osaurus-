@@ -160,6 +160,19 @@ def goal_selection_prompt(agent, ctx):
 def fallback_plan(agent, ctx):
     """Deterministic grounded plan used when the model's JSON is unusable.
     Writes a real observation of real state — never invented content."""
+    # Right after a completion, don't adopt a filler goal the agent will
+    # only abandon (each churn cost 0.2 durable futility, observed 5x).
+    # A goalless idle grows purposelessness 0.15 but that resolves in full
+    # at the next real adoption — strictly cheaper.
+    if not ctx.get("goal") and ctx.get("just_completed"):
+        return {
+            "thought": (
+                "model reply unusable right after a completion; resting this "
+                "cycle rather than adopting a filler goal"
+            ),
+            "action": "idle",
+            "steps": [],
+        }
     note_lines = [
         f"# Field observation (fallback) — cycle {ctx['cycle']}",
         f"agent: {agent}",

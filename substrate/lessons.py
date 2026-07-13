@@ -10,7 +10,10 @@ import threading
 
 from .memory import Memory, now_iso, read_json, write_json
 
-JACCARD_THRESHOLD = 0.55
+# 0.45: at 0.55 the rulebook collected six paraphrases of one citation
+# mantra (~0.5 similarity each) — lesson prose rewords easily, so dedupe
+# must match looser than goal-title checks do. Retraction matches at 0.4.
+JACCARD_THRESHOLD = 0.45
 # Retraction is an operator veto, so it matches more loosely than dedupe:
 # a vetoed belief re-derived in fresh words (observed live at 0.54 vs the
 # 0.55 dedupe threshold) must still be blocked. Over-blocking near a vetoed

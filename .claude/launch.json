@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hollow-habitat",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["hollow.py", "run"],
+      "port": 7777
+    },
+    {
+      "name": "stub-osaurus",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["tests/stub_osaurus.py", "--port", "1338"],
+      "port": 1338
+    }
+  ]
+}

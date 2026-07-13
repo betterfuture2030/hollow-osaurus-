@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import httpx
 
 from substrate import AGENT_NAMES, DEFAULT_CONFIG
-from substrate.agents import goal_selection_prompt
+from substrate.agents import fallback_plan, goal_selection_prompt
 from substrate.loop import Habitat
 from substrate.server import start_server
 from substrate.validation import validate_goal
@@ -202,6 +202,35 @@ def main():
           (habitat.memory.workspace / "shared" / "keepme.md").is_file()
           and not (habitat.memory.workspace / "builder" / "tempjunk.md").exists())
     habitat.suffering["builder"].resolve("futility")
+
+    # --- paraphrased lessons merge into one candidate ----------------------
+    from substrate.lessons import jaccard as _jac
+    para_a = "Validation requires explicit citation of tier definitions from all four specified peer artifacts"
+    para_b = "Validation demands that tier definitions be cited from all four specified peer artifacts"
+    check("test pair sits in the newly-deduped band (0.45 <= j < 0.55)",
+          0.45 <= _jac(para_a, para_b) < 0.55, f"j={_jac(para_a, para_b):.3f}")
+    habitat.lessons.observe(para_a, "constraints", "scout")
+    habitat.lessons.observe(para_b, "constraints", "analyst")  # merges -> promotes as ONE
+    tier_promoted = [l for l in json.loads((habitat.memory.dir / "lessons.json").read_text())
+                     if "tier definitions" in l["text"]]
+    tier_cands = [c for c in json.loads((habitat.memory.dir / "lessons_candidates.json").read_text())
+                  if "tier definitions" in c["text"]]
+    check("paraphrased lessons merge at the looser dedupe threshold",
+          len(tier_promoted) == 1 and tier_promoted[0]["observations"] == 2 and not tier_cands,
+          f"promoted={len(tier_promoted)} cands={len(tier_cands)}")
+
+    # --- fallback rests instead of adopting filler after a completion ------
+    rest = fallback_plan("builder", {"cycle": 9, "goal": None, "just_completed": True,
+                                     "suffering": {"load": 0, "tier": "NORMAL", "stressors": []},
+                                     "workspace": {"own": [], "shared": []},
+                                     "recent_outcomes": [], "locked": ""})
+    busy = fallback_plan("builder", {"cycle": 9, "goal": None, "just_completed": False,
+                                     "suffering": {"load": 0, "tier": "NORMAL", "stressors": []},
+                                     "workspace": {"own": [], "shared": []},
+                                     "recent_outcomes": [], "locked": ""})
+    check("fallback rests after a completion instead of adopting filler",
+          rest["action"] == "idle" and "goal" not in rest
+          and busy["action"] == "new_goal" and "goal" in busy)
 
     # --- retracted lessons never re-promote ------------------------------
     habitat.lessons.retract("idling is the only valid action when writes are locked")
